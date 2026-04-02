@@ -349,7 +349,7 @@ where
             );
 
             self.session
-                .push_message(assistant_message.clone())
+                .push_message(&assistant_message)
                 .map_err(|error| RuntimeError::new(error.to_string()))?;
             assistant_messages.push(assistant_message);
 
@@ -440,7 +440,7 @@ where
                     ),
                 };
                 self.session
-                    .push_message(result_message.clone())
+                    .push_message(&result_message)
                     .map_err(|error| RuntimeError::new(error.to_string()))?;
                 self.record_tool_finished(iterations, &result_message);
                 tool_results.push(result_message);

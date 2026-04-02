@@ -173,14 +173,14 @@ impl Session {
         Ok(session.with_persistence_path(path.to_path_buf()))
     }
 
-    pub fn push_message(&mut self, message: ConversationMessage) -> Result<(), SessionError> {
+    pub fn push_message(&mut self, message: &ConversationMessage) -> Result<(), SessionError> {
         self.touch();
         self.messages.push(message.clone());
-        self.append_persisted_message(&message)
+        self.append_persisted_message(message)
     }
 
     pub fn push_user_text(&mut self, text: impl Into<String>) -> Result<(), SessionError> {
-        self.push_message(ConversationMessage::user_text(text))
+        self.push_message(&ConversationMessage::user_text(text))
     }
 
     pub fn record_compaction(&mut self, summary: impl Into<String>, removed_message_count: usize) {
@@ -815,6 +815,12 @@ fn current_time_millis() -> u64 {
         .unwrap_or_default()
 }
 
+fn has_jsonl_extension(path: &Path) -> bool {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("jsonl"))
+}
+
 fn generate_session_id() -> String {
     let millis = current_time_millis();
     let counter = SESSION_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -879,12 +885,8 @@ fn cleanup_rotated_logs(path: &Path) -> Result<(), SessionError> {
             entry_path
                 .file_name()
                 .and_then(|value| value.to_str())
-                .is_some_and(|name| {
-                    name.starts_with(&prefix)
-                        && Path::new(name)
-                            .extension()
-                            .is_some_and(|ext| ext.eq_ignore_ascii_case("jsonl"))
-                })
+                .is_some_and(|name| name.starts_with(&prefix))
+                && has_jsonl_extension(entry_path)
         })
         .collect::<Vec<_>>();
 
@@ -910,7 +912,7 @@ mod tests {
     use crate::json::JsonValue;
     use crate::usage::TokenUsage;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -920,7 +922,7 @@ mod tests {
             .push_user_text("hello")
             .expect("user message should append");
         session
-            .push_message(ConversationMessage::assistant_with_usage(
+            .push_message(&ConversationMessage::assistant_with_usage(
                 vec![
                     ContentBlock::Text {
                         text: "thinking".to_string(),
@@ -940,7 +942,7 @@ mod tests {
             ))
             .expect("assistant message should append");
         session
-            .push_message(ConversationMessage::tool_result(
+            .push_message(&ConversationMessage::tool_result(
                 "tool-1", "bash", "hi", false,
             ))
             .expect("tool result should append");
@@ -997,7 +999,7 @@ mod tests {
             .push_user_text("hi")
             .expect("user append should succeed");
         session
-            .push_message(ConversationMessage::assistant(vec![ContentBlock::Text {
+            .push_message(&ConversationMessage::assistant(vec![ContentBlock::Text {
                 text: "hello".to_string(),
             }]))
             .expect("assistant append should succeed");
@@ -1060,8 +1062,14 @@ mod tests {
     #[test]
     fn rotates_and_cleans_up_large_session_logs() {
         let path = temp_session_path("rotation");
-        fs::write(&path, "x".repeat((super::ROTATE_AFTER_BYTES + 10) as usize))
-            .expect("oversized file should write");
+        fs::write(
+            &path,
+            "x".repeat(
+                usize::try_from(super::ROTATE_AFTER_BYTES + 10)
+                    .expect("rotation threshold should fit usize"),
+            ),
+        )
+        .expect("oversized file should write");
         rotate_session_file_if_needed(&path).expect("rotation should succeed");
         assert!(
             !path.exists(),
@@ -1089,7 +1097,7 @@ mod tests {
         std::env::temp_dir().join(format!("runtime-session-{label}-{nanos}.json"))
     }
 
-    fn rotation_files(path: &PathBuf) -> Vec<PathBuf> {
+    fn rotation_files(path: &Path) -> Vec<PathBuf> {
         let stem = path
             .file_stem()
             .and_then(|value| value.to_str())
@@ -1103,9 +1111,8 @@ mod tests {
                 entry_path
                     .file_name()
                     .and_then(|value| value.to_str())
-                    .is_some_and(|name| {
-                        name.starts_with(&format!("{stem}.rot-")) && name.ends_with(".jsonl")
-                    })
+                    .is_some_and(|name| name.starts_with(&format!("{stem}.rot-")))
+                    && super::has_jsonl_extension(entry_path)
             })
             .collect()
     }
