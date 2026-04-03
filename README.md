@@ -1,191 +1,107 @@
-# Rewriting Project Claw Code
+# Claw Code Local
 
-<p align="center">
-  <strong>⭐ The fastest repo in history to surpass 50K stars, reaching the milestone in just 2 hours after publication ⭐</strong>
-</p>
+**Claude Code experience. Local models. Zero API costs.**
 
-<p align="center">
-  <a href="https://star-history.com/#instructkr/claw-code&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date" width="600" />
-    </picture>
-  </a>
-</p>
+Run a full-featured coding agent CLI against Ollama, LM Studio, or any OpenAI-compatible endpoint — entirely on your machine, with your own models.
 
-<p align="center">
-  <img src="assets/clawd-hero.jpeg" alt="Claw" width="300" />
-</p>
-
-<p align="center">
-  <strong>Better Harness Tools, not merely storing the archive of leaked Claude Code</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/sponsors/instructkr"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github&style=for-the-badge" alt="Sponsor on GitHub" /></a>
-</p>
-
-> [!IMPORTANT]
-> **Rust port is now in progress** on the [`dev/rust`](https://github.com/instructkr/claw-code/tree/dev/rust) branch and is expected to be merged into main today. The Rust implementation aims to deliver a faster, memory-safe harness runtime. Stay tuned — this will be the definitive version of the project.
-
-> If you find this work useful, consider [sponsoring @instructkr on GitHub](https://github.com/sponsors/instructkr) to support continued open-source harness engineering research.
+Built on top of [claw-code-parity](https://github.com/ultraworkers/claw-code-parity), a clean-room Rust reimplementation of the Claude Code harness.
 
 ---
 
-## Backstory
+## What this is
 
-At 4 AM on March 31, 2026, I woke up to my phone blowing up with notifications. The Claude Code source had been exposed, and the entire dev community was in a frenzy. My girlfriend in Korea was genuinely worried I might face legal action from Anthropic just for having the code on my machine — so I did what any engineer would do under pressure: I sat down, ported the core features to Python from scratch, and pushed it before the sun came up.
+Claw Code Local patches the `claw` CLI to use any LLM provider, not just Anthropic. The upstream project built a full multi-provider API layer but never wired it into the actual binary — it was hardcoded to require Anthropic credentials. We fixed that, along with a streaming render bug that caused terminal output to smash sections together.
 
-The whole thing was orchestrated end-to-end using [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex) by [@bellman_ych](https://x.com/bellman_ych) — a workflow layer built on top of OpenAI's Codex ([@OpenAIDevs](https://x.com/OpenAIDevs)). I used `$team` mode for parallel code review and `$ralph` mode for persistent execution loops with architect-level verification. The entire porting session — from reading the original harness structure to producing a working Python tree with tests — was driven through OmX orchestration.
-
-The result is a clean-room Python rewrite that captures the architectural patterns of Claude Code's agent harness without copying any proprietary source. I'm now actively collaborating with [@bellman_ych](https://x.com/bellman_ych) — the creator of OmX himself — to push this further. The basic Python foundation is already in place and functional, but we're just getting started. **Stay tuned — a much more capable version is on the way.**
-
-https://github.com/instructkr/claw-code
-
-![Tweet screenshot](assets/tweet-screenshot.png)
-
-## The Creators Featured in Wall Street Journal For Avid Claude Code Fans
-
-I've been deeply interested in **harness engineering** — studying how agent systems wire tools, orchestrate tasks, and manage runtime context. This isn't a sudden thing. The Wall Street Journal featured my work earlier this month, documenting how I've been one of the most active power users exploring these systems:
-
-> AI startup worker Sigrid Jin, who attended the Seoul dinner, single-handedly used 25 billion of Claude Code tokens last year. At the time, usage limits were looser, allowing early enthusiasts to reach tens of billions of tokens at a very low cost.
->
-> Despite his countless hours with Claude Code, Jin isn't faithful to any one AI lab. The tools available have different strengths and weaknesses, he said. Codex is better at reasoning, while Claude Code generates cleaner, more shareable code.
->
-> Jin flew to San Francisco in February for Claude Code's first birthday party, where attendees waited in line to compare notes with Cherny. The crowd included a practicing cardiologist from Belgium who had built an app to help patients navigate care, and a California lawyer who made a tool for automating building permit approvals using Claude Code.
->
-> "It was basically like a sharing party," Jin said. "There were lawyers, there were doctors, there were dentists. They did not have software engineering backgrounds."
->
-> — *The Wall Street Journal*, March 21, 2026, [*"The Trillion Dollar Race to Automate Our Entire Lives"*](https://lnkd.in/gs9td3qd)
-
-![WSJ Feature](assets/wsj-feature.png)
-
----
-
-## Porting Status
-
-The main source tree is now Python-first.
-
-- `src/` contains the active Python porting workspace
-- `tests/` verifies the current Python workspace
-- the exposed snapshot is no longer part of the tracked repository state
-
-The current Python workspace is not yet a complete one-to-one replacement for the original system, but the primary implementation surface is now Python.
-
-## Why this rewrite exists
-
-I originally studied the exposed codebase to understand its harness, tool wiring, and agent workflow. After spending more time with the legal and ethical questions—and after reading the essay linked below—I did not want the exposed snapshot itself to remain the main tracked source tree.
-
-This repository now focuses on Python porting work instead.
-
-## Repository Layout
-
-```text
-.
-├── src/                                # Python porting workspace
-│   ├── __init__.py
-│   ├── commands.py
-│   ├── main.py
-│   ├── models.py
-│   ├── port_manifest.py
-│   ├── query_engine.py
-│   ├── task.py
-│   └── tools.py
-├── tests/                              # Python verification
-├── assets/omx/                         # OmX workflow screenshots
-├── 2026-03-09-is-legal-the-same-as-legitimate-ai-reimplementation-and-the-erosion-of-copyleft.md
-└── README.md
-```
-
-## Python Workspace Overview
-
-The new Python `src/` tree currently provides:
-
-- **`port_manifest.py`** — summarizes the current Python workspace structure
-- **`models.py`** — dataclasses for subsystems, modules, and backlog state
-- **`commands.py`** — Python-side command port metadata
-- **`tools.py`** — Python-side tool port metadata
-- **`query_engine.py`** — renders a Python porting summary from the active workspace
-- **`main.py`** — a CLI entrypoint for manifest and summary output
+**What you get:**
+- Interactive REPL with session persistence, slash commands, markdown rendering
+- Tool use: file read/write/edit, grep, glob, bash execution, git integration
+- `/commit`, `/diff`, `/pr`, `/review`, `/mcp`, `/agents`, `/skills` and 130+ slash commands
+- Works with any model your hardware can run
+- Sessions auto-save and can be resumed
 
 ## Quickstart
 
-Render the Python porting summary:
+### Prerequisites
+
+- [Rust toolchain](https://rustup.rs/) (1.70+)
+- [Ollama](https://ollama.com/) running locally (or any OpenAI-compatible endpoint)
+- A model pulled in Ollama (e.g. `ollama pull qwen3:14b`)
+
+### Build
 
 ```bash
-python3 -m src.main summary
+git clone https://github.com/codetwentyfive/claw-code-local.git
+cd claw-code-local/rust
+cargo build -p rusty-claude-cli --release
 ```
 
-Print the current Python workspace manifest:
+The binary is at `rust/target/release/claw.exe` (Windows) or `rust/target/release/claw` (Linux/macOS).
+
+### Configure
+
+Set two environment variables. The API key value doesn't matter for Ollama — it just needs to be non-empty.
+
+**Bash / Zsh:**
+```bash
+export OPENAI_API_KEY=ollama
+export OPENAI_BASE_URL=http://localhost:11434/v1
+```
+
+**PowerShell (add to `$PROFILE`):**
+```powershell
+$env:OPENAI_API_KEY = "ollama"
+$env:OPENAI_BASE_URL = "http://localhost:11434/v1"
+```
+
+Optionally add the binary to your PATH for global access.
+
+### Run
 
 ```bash
-python3 -m src.main manifest
+# Interactive REPL
+claw --model qwen3:14b
+
+# One-shot prompt
+claw --model qwen3:14b "explain this codebase"
+
+# Switch models mid-session with /model
+/model qwen3.5-35b-uncensored:iq3m
+
+# Resume your last session
+claw --resume latest
 ```
 
-List the current Python modules:
+## Supported providers
 
+The CLI auto-detects the provider from the model name and environment variables:
+
+| Provider | Models | Env vars |
+|----------|--------|----------|
+| **Ollama** | Any model you've pulled | `OPENAI_API_KEY=ollama` `OPENAI_BASE_URL=http://localhost:11434/v1` |
+| **LM Studio** | Any loaded model | `OPENAI_API_KEY=lmstudio` `OPENAI_BASE_URL=http://localhost:1234/v1` |
+| **OpenAI** | gpt-4o, o1, etc. | `OPENAI_API_KEY=sk-...` |
+| **xAI (Grok)** | grok-3, grok-3-mini | `XAI_API_KEY=xai-...` |
+| **Anthropic** | claude-opus, sonnet, haiku | `ANTHROPIC_API_KEY=sk-ant-...` |
+| **Any OpenAI-compatible** | Depends on provider | `OPENAI_API_KEY=...` `OPENAI_BASE_URL=https://...` |
+
+## What we changed from upstream
+
+Two patches, both original:
+
+1. **Multi-provider CLI wiring** — The `api` crate already had `ProviderClient` with OpenAI-compat and xAI support, but the CLI hardcoded `AnthropicClient` and always required Anthropic credentials. We swapped it to `ProviderClient::from_model_with_anthropic_auth()` so the provider is auto-detected from the model name and env vars.
+
+2. **Streaming markdown render fix** — `render_markdown()` called `trim_end()` which stripped trailing newlines. In streaming mode each chunk is rendered independently, so block separators (between tables, headings, paragraphs) got eaten and everything ran together on one line. Added a streaming-safe render path that preserves block spacing.
+
+## Upstream
+
+This is a fork of [ultraworkers/claw-code-parity](https://github.com/ultraworkers/claw-code-parity), which is itself a clean-room Rust reimplementation of Claude Code's agent harness — **not** a copy of Anthropic's source code. See the upstream README and [PARITY.md](PARITY.md) for the full porting status.
+
+To sync with upstream:
 ```bash
-python3 -m src.main subsystems --limit 16
+git fetch upstream
+git merge upstream/main
 ```
 
-Run verification:
+## License
 
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-Run the parity audit against the local ignored archive (when present):
-
-```bash
-python3 -m src.main parity-audit
-```
-
-Inspect mirrored command/tool inventories:
-
-```bash
-python3 -m src.main commands --limit 10
-python3 -m src.main tools --limit 10
-```
-
-## Current Parity Checkpoint
-
-The port now mirrors the archived root-entry file surface, top-level subsystem names, and command/tool inventories much more closely than before. However, it is **not yet** a full runtime-equivalent replacement for the original TypeScript system; the Python tree still contains fewer executable runtime slices than the archived source.
-
-
-## Built with `oh-my-codex`
-
-The restructuring and documentation work on this repository was AI-assisted and orchestrated with Yeachan Heo's [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex), layered on top of Codex.
-
-- **`$team` mode:** used for coordinated parallel review and architectural feedback
-- **`$ralph` mode:** used for persistent execution, verification, and completion discipline
-- **Codex-driven workflow:** used to turn the main `src/` tree into a Python-first porting workspace
-
-### OmX workflow screenshots
-
-![OmX workflow screenshot 1](assets/omx/omx-readme-review-1.png)
-
-*Ralph/team orchestration view while the README and essay context were being reviewed in terminal panes.*
-
-![OmX workflow screenshot 2](assets/omx/omx-readme-review-2.png)
-
-*Split-pane review and verification flow during the final README wording pass.*
-
-## Community
-
-<p align="center">
-  <a href="https://instruct.kr/"><img src="assets/instructkr.png" alt="instructkr" width="400" /></a>
-</p>
-
-Join the [**instructkr Discord**](https://instruct.kr/) — the best Korean language model community. Come chat about LLMs, harness engineering, agent workflows, and everything in between.
-
-[![Discord](https://img.shields.io/badge/Join%20Discord-instruct.kr-5865F2?logo=discord&style=for-the-badge)](https://instruct.kr/)
-
-## Star History
-
-See the chart at the top of this README.
-
-## Ownership / Affiliation Disclaimer
-
-- This repository does **not** claim ownership of the original Claude Code source material.
-- This repository is **not affiliated with, endorsed by, or maintained by Anthropic**.
+MIT — same as upstream.
