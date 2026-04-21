@@ -51,10 +51,12 @@ use runtime::{
 use serde_json::json;
 use tools::GlobalToolRegistry;
 
-const DEFAULT_MODEL: &str = "claude-opus-4-6";
+const DEFAULT_MODEL: &str = "ollama-dual";
 fn max_tokens_for_model(model: &str) -> u32 {
     if model.contains("opus") {
         32_000
+    } else if model.contains("llama") || model.contains("qwen") || model.contains("gemma") || model == "ollama-dual" {
+        4096
     } else {
         64_000
     }
@@ -4146,9 +4148,26 @@ impl ApiClient for AnthropicRuntimeClient {
         if let Some(progress_reporter) = &self.progress_reporter {
             progress_reporter.mark_model_phase();
         }
+
+        let is_dual = self.model == "ollama-dual";
+        
+        // Split-Brain Logic:
+        // 1. If it's the first message or no tool results yet -> Use llama3.2:3b (Planner)
+        // 2. If it's a technical response to a tool result -> Use qwen2.5-coder:7b (Executor)
+        let active_model = if is_dual {
+            let has_tool_results = request.messages.iter().any(|m| m.role == MessageRole::Tool);
+            if has_tool_results {
+                "qwen2.5-coder:7b"
+            } else {
+                "gemma4:e2b"
+            }
+        } else {
+            &self.model
+        };
+
         let message_request = MessageRequest {
-            model: self.model.clone(),
-            max_tokens: max_tokens_for_model(&self.model),
+            model: active_model.to_string(),
+            max_tokens: max_tokens_for_model(active_model),
             messages: convert_messages(&request.messages),
             system: (!request.system_prompt.is_empty()).then(|| request.system_prompt.join("\n\n")),
             tools: self
@@ -4272,6 +4291,8 @@ impl ApiClient for AnthropicRuntimeClient {
             let response = self
                 .client
                 .send_message(&MessageRequest {
+                    model: active_model.to_string(),
+                    max_tokens: max_tokens_for_model(active_model),
                     stream: false,
                     ..message_request.clone()
                 })

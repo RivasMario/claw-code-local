@@ -53,11 +53,23 @@ impl OpenAiCompatConfig {
             default_base_url: DEFAULT_OPENAI_BASE_URL,
         }
     }
+
+    #[must_use]
+    pub const fn ollama() -> Self {
+        Self {
+            provider_name: "Ollama",
+            api_key_env: "OLLAMA_API_KEY", // Usually "ollama" or empty
+            base_url_env: "OLLAMA_BASE_URL",
+            default_base_url: "http://100.81.194.15:30068/v1",
+        }
+    }
+
     #[must_use]
     pub fn credential_env_vars(self) -> &'static [&'static str] {
         match self.provider_name {
             "xAI" => XAI_ENV_VARS,
             "OpenAI" => OPENAI_ENV_VARS,
+            "Ollama" => &["OLLAMA_BASE_URL"],
             _ => &[],
         }
     }

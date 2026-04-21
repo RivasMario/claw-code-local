@@ -28,7 +28,7 @@ fn is_binary_file(path: &Path) -> io::Result<bool> {
 /// Validate that a resolved path stays within the given workspace root.
 /// Returns the canonical path on success, or an error if the path escapes
 /// the workspace boundary (e.g. via `../` traversal or symlink).
-fn validate_workspace_boundary(resolved: &Path, workspace_root: &Path) -> io::Result<()> {
+pub fn validate_workspace_boundary(resolved: &Path, workspace_root: &Path) -> io::Result<()> {
     if !resolved.starts_with(workspace_root) {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
