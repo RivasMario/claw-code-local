@@ -324,6 +324,8 @@ struct StreamState {
     stop_reason: Option<String>,
     usage: Option<Usage>,
     tool_calls: BTreeMap<u32, ToolCallState>,
+    emitted_text: String,
+    id: Option<String>,
 }
 
 impl StreamState {
@@ -337,6 +339,8 @@ impl StreamState {
             stop_reason: None,
             usage: None,
             tool_calls: BTreeMap::new(),
+            emitted_text: String::new(),
+            id: None,
         }
     }
 
@@ -344,6 +348,7 @@ impl StreamState {
         let mut events = Vec::new();
         if !self.message_started {
             self.message_started = true;
+            self.id = Some(chunk.id.clone());
             events.push(StreamEvent::MessageStart(MessageStartEvent {
                 message: MessageResponse {
                     id: chunk.id.clone(),
@@ -384,6 +389,7 @@ impl StreamState {
                         },
                     }));
                 }
+                self.emitted_text.push_str(&content);
                 events.push(StreamEvent::ContentBlockDelta(ContentBlockDeltaEvent {
                     index: 0,
                     delta: ContentBlockDelta::TextDelta { text: content },
@@ -460,6 +466,32 @@ impl StreamState {
                 events.push(StreamEvent::ContentBlockStop(ContentBlockStopEvent {
                     index: state.block_index(),
                 }));
+            }
+        }
+
+        // Fallback for local models that emit tool calls as JSON in `content`
+        // instead of populating `tool_calls` (mistral [TOOL_CALLS] leak,
+        // qwen2.5-coder raw JSON, etc.). Synthesize a ToolUse block so claw's
+        // agent loop executes the call instead of treating it as chatter.
+        if self.tool_calls.is_empty() && !self.emitted_text.is_empty() {
+            if let Some((name, input)) = parse_embedded_tool_call(&self.emitted_text) {
+                let synth_index: u32 = 1;
+                let synth_id = format!(
+                    "fallback-{}",
+                    self.id.clone().unwrap_or_else(|| "msg".to_string())
+                );
+                events.push(StreamEvent::ContentBlockStart(ContentBlockStartEvent {
+                    index: synth_index,
+                    content_block: OutputContentBlock::ToolUse {
+                        id: synth_id,
+                        name,
+                        input,
+                    },
+                }));
+                events.push(StreamEvent::ContentBlockStop(ContentBlockStopEvent {
+                    index: synth_index,
+                }));
+                self.stop_reason = Some("tool_use".to_string());
             }
         }
 
@@ -786,15 +818,37 @@ fn normalize_response(
             "chat completion response missing choices",
         ))?;
     let mut content = Vec::new();
-    if let Some(text) = choice.message.content.filter(|value| !value.is_empty()) {
-        content.push(OutputContentBlock::Text { text });
-    }
+    let mut text_block: Option<String> = choice
+        .message
+        .content
+        .filter(|value| !value.is_empty());
+    let had_tool_calls = !choice.message.tool_calls.is_empty();
     for tool_call in choice.message.tool_calls {
         content.push(OutputContentBlock::ToolUse {
             id: tool_call.id,
             name: tool_call.function.name,
             input: parse_tool_arguments(&tool_call.function.arguments),
         });
+    }
+
+    // Fallback: if the model emitted no tool_calls but its content is a
+    // tool-call-shaped JSON blob, synthesize a ToolUse so claw's agent loop
+    // can execute it instead of treating it as chatter.
+    if !had_tool_calls {
+        if let Some(text) = &text_block {
+            if let Some((name, input)) = parse_embedded_tool_call(text) {
+                content.push(OutputContentBlock::ToolUse {
+                    id: format!("fallback-{}", response.id),
+                    name,
+                    input,
+                });
+                text_block = None;
+            }
+        }
+    }
+
+    if let Some(text) = text_block {
+        content.insert(0, OutputContentBlock::Text { text });
     }
 
     Ok(MessageResponse {
@@ -825,6 +879,59 @@ fn normalize_response(
 
 fn parse_tool_arguments(arguments: &str) -> Value {
     serde_json::from_str(arguments).unwrap_or_else(|_| json!({ "raw": arguments }))
+}
+
+/// Detect a tool call embedded in the model's text content.
+///
+/// Some local models (qwen2.5-coder, mistral-nemo under complex schemas, etc.)
+/// emit tool calls as raw JSON in the `content` field instead of populating
+/// the `tool_calls` array. Ollama's OpenAI-compat endpoint doesn't always
+/// convert these. Returns `(name, arguments_value)` if a single tool-call-shaped
+/// JSON object is found.
+///
+/// Handles:
+/// - `[TOOL_CALLS]{"name":"x","arguments":{...}}` (mistral template leak)
+/// - `<tool_call>{"name":"x","arguments":{...}}</tool_call>` (qwen variants)
+/// - Bare `{"name":"x","arguments":{...}}` or `{"name":"x","parameters":{...}}`
+/// - `arguments` as either an object or a double-encoded JSON string.
+pub(crate) fn parse_embedded_tool_call(text: &str) -> Option<(String, Value)> {
+    let mut stripped = text.trim();
+    if let Some(rest) = stripped.strip_prefix("[TOOL_CALLS]") {
+        stripped = rest.trim();
+    }
+    if let Some(rest) = stripped.strip_prefix("<tool_call>") {
+        stripped = rest;
+    }
+    if let Some(rest) = stripped.strip_suffix("</tool_call>") {
+        stripped = rest;
+    }
+    let stripped = stripped.trim();
+
+    // Only treat as embedded tool call if the content starts with `{` or `[`
+    // (pure JSON, not prose that happens to contain JSON).
+    if !stripped.starts_with('{') && !stripped.starts_with('[') {
+        return None;
+    }
+
+    let value: Value = serde_json::from_str(stripped).ok()?;
+    // Accept either a single object or a one-element array.
+    let obj = match &value {
+        Value::Object(_) => value.as_object()?.clone(),
+        Value::Array(arr) if arr.len() == 1 => arr[0].as_object()?.clone(),
+        _ => return None,
+    };
+    let name = obj.get("name")?.as_str()?.to_string();
+    let args_raw = obj
+        .get("arguments")
+        .or_else(|| obj.get("parameters"))
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    // Some templates double-encode arguments as a JSON string.
+    let args = match args_raw {
+        Value::String(s) => serde_json::from_str(&s).unwrap_or(Value::String(s)),
+        other => other,
+    };
+    Some((name, args))
 }
 
 fn next_sse_frame(buffer: &mut Vec<u8>) -> Option<String> {
