@@ -6,6 +6,11 @@ Run a full-featured coding agent CLI against Ollama, LM Studio, or any OpenAI-co
 
 Built on top of [claw-code-parity](https://github.com/ultraworkers/claw-code-parity), a clean-room Rust reimplementation of the Claude Code harness.
 
+> [!IMPORTANT]
+> The active Rust workspace now lives in [`rust/`](./rust). Start with [`USAGE.md`](./USAGE.md) for build, auth, CLI, session, and parity-harness workflows, then use [`rust/README.md`](./rust/README.md) for crate-level details.
+
+> See also: [`PHILOSOPHY.md`](./PHILOSOPHY.md), [`ROADMAP.md`](./ROADMAP.md).
+
 ---
 
 ## What this is
@@ -15,7 +20,7 @@ Claw Code Local patches the `claw` CLI to use any LLM provider, not just Anthrop
 **What you get:**
 - Interactive REPL with session persistence, slash commands, markdown rendering
 - Tool use: file read/write/edit, grep, glob, bash execution, git integration
-- `/commit`, `/diff`, `/pr`, `/review`, `/mcp`, `/agents`, `/skills` and 130+ slash commands
+- `/commit`, `/diff`, `/pr`, `/review`, `/mcp`, `/agents`, `/skills` and 140+ slash commands
 - Works with any model your hardware can run
 - Sessions auto-save and can be resumed
 
